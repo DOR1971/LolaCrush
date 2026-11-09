@@ -4,7 +4,7 @@
    actualización de la caché.
    ========================================================================== */
 
-const VERSION = "lolacrush-v6";
+const VERSION = "lolacrush-v7";
 const CACHE = "cache-" + VERSION;
 
 const ASSETS = [

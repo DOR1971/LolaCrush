@@ -46,17 +46,33 @@
       const raw = localStorage.getItem(PROFILE_KEY);
       if (raw) {
         const p = JSON.parse(raw);
+        const best = p.best || 0;
+        const scores = Array.isArray(p.scores) ? p.scores : [];
+
+        /* Perfiles antiguos sin tabla: su récord pasa a llamarse Lola. */
+        if (scores.length === 0 && best > 0) {
+          scores.push({ name: p.lastName || "Lola", score: best });
+        }
+
         return {
           coins: p.coins || 0,
-          best: p.best || 0,
+          best: best,
+          lastName: p.lastName || "Lola",
           items: {
             moves: (p.items && p.items.moves) || 0,
             shuffle: (p.items && p.items.shuffle) || 0
-          }
+          },
+          scores: scores
         };
       }
     } catch (err) { /* sin almacenamiento */ }
-    return { coins: 0, best: 0, items: { moves: 0, shuffle: 0 } };
+    return {
+      coins: 0,
+      best: 0,
+      lastName: "Lola",
+      items: { moves: 0, shuffle: 0 },
+      scores: []
+    };
   }
 
   function saveProfile() {
@@ -66,6 +82,17 @@
   }
 
   let profile = loadProfile();
+
+  function guardarPuntuacion(name, score) {
+    profile.scores.push({ name: name, score: score });
+    profile.scores.sort((a, b) => b.score - a.score);
+    profile.scores = profile.scores.slice(0, 10);
+
+    if (score > profile.best) profile.best = score;
+    saveProfile();
+
+    return profile.scores.findIndex((s) => s.name === name && s.score === score) + 1;
+  }
 
   /* --- Parámetros del modo competitivo ---------------------------------- */
 
@@ -285,6 +312,23 @@
     });
 
     return card;
+  }
+
+  function rankingBlock() {
+    const rows = profile.scores.slice(0, 5).map((s, i) =>
+      h("div", { class: "ranking__row" },
+        h("span", { class: "ranking__pos", text: (i + 1) + "." }),
+        h("span", { class: "ranking__name", text: s.name }),
+        h("span", { class: "ranking__score", text: String(s.score) })
+      )
+    );
+
+    return h("div", { class: "ranking" },
+      h("span", { class: "ranking__title", text: "Récords" }),
+      rows.length
+        ? rows
+        : h("span", { class: "small", text: "Todavía no hay récords guardados." })
+    );
   }
 
   /* --- Presentación ------------------------------------------------------ */
@@ -595,6 +639,7 @@
         hudItem("Récord", h("span", { class: "hud__value", text: String(profile.best) })),
         hudItem("Monedas", h("span", { class: "hud__value", text: String(profile.coins) }))
       ),
+      rankingBlock(),
       jugarBtn,
       tiendaBtn,
       h("div", { class: "tc" }, menuLink())
@@ -778,6 +823,29 @@
     if (nuevoRecord) profile.best = run.score;
     saveProfile();
 
+    const nameInput = h("input", {
+      class: "name-input",
+      type: "text",
+      maxlength: "14",
+      autocomplete: "off",
+      autocapitalize: "words",
+      placeholder: "Tu nombre",
+      value: profile.lastName || "Lola"
+    });
+
+    const saveBtn = h("button", { class: "btn btn--small", text: "Guardar" });
+    const saveMsg = h("p", { class: "small", text: "" });
+
+    saveBtn.addEventListener("click", () => {
+      const name = (nameInput.value || "").trim().slice(0, 14) || "Lola";
+      const puesto = guardarPuntuacion(name, run.score);
+
+      saveMsg.textContent = "Guardado: " + name + " · puesto " + puesto;
+      saveBtn.disabled = true;
+      nameInput.disabled = true;
+      Sound.ok();
+    });
+
     const again = h("button", { class: "btn btn--wide", text: "Otra vez" });
     again.addEventListener("click", () => {
       Sound.tap();
@@ -799,6 +867,11 @@
       h("div", { class: "clue" },
         h("span", { class: "clue__label", text: "Has ganado" }),
         h("p", { class: "clue__text", text: "+" + ganadas + " monedas" })
+      ),
+      h("div", { class: "save-block" },
+        h("span", { class: "save-block__label", text: "Guarda tu récord" }),
+        h("div", { class: "save-block__row" }, nameInput, saveBtn),
+        saveMsg
       ),
       again,
       shop,
@@ -855,6 +928,34 @@
       competitivo();
     });
 
+    const reset = h("button", { class: "btn btn--link", text: "Borrar todos los datos" });
+    let armado = false;
+    let armadoTimer = null;
+
+    reset.addEventListener("click", () => {
+      if (!armado) {
+        armado = true;
+        reset.textContent = "¿Seguro? Pulsa otra vez";
+        clearTimeout(armadoTimer);
+        armadoTimer = setTimeout(() => {
+          armado = false;
+          reset.textContent = "Borrar todos los datos";
+        }, 4000);
+        return;
+      }
+
+      profile = {
+        coins: 0,
+        best: 0,
+        lastName: "Lola",
+        items: { moves: 0, shuffle: 0 },
+        scores: []
+      };
+      saveProfile();
+      Sound.error();
+      tienda();
+    });
+
     UI.show(makeScreen([
       h("div", { class: "center stack-sm" },
         h("span", { class: "kicker", text: "Tienda" }),
@@ -862,7 +963,8 @@
         h("p", { class: "small", text: "Gana monedas jugando al modo competitivo." })
       ),
       ...items,
-      back
+      back,
+      h("div", { class: "tc" }, reset)
     ], { center: true, tight: true }));
   }
 

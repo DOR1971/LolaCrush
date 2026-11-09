@@ -17,6 +17,7 @@ window.REGALO = {
     saludo: "./assets/saludo-1.jpg",
     portada: "./assets/portada.jpg",
     nivelSuperado: "./assets/nivel-superado.jpg",
+    lolaRegalo: "./assets/lola-regalo.jpg",
     logo: "./assets/icon-512.png",
     lola: "./assets/lola.png",
     david: "./assets/david.png",
@@ -49,7 +50,26 @@ window.REGALO = {
       "¡Sigue, sigue!",
       "Eso es, Lola."
     ],
-    combo: "¡Combo!",
+    poco: "Te quedan pocos movimientos. ¡No aflojes!"
+  },
+
+  /* --- Frases del modo competitivo (aquí no hay pistas) ------------------- */
+  motivacionLibre: {
+    saludo: "Vamos, Lola. A por puntos.",
+    umbrales: [
+      { pct: 0.20, texto: "¡Vas bien, Lola!" },
+      { pct: 0.40, texto: "Sigue así, que subes de nivel." },
+      { pct: 0.60, texto: "Casi lo tienes." },
+      { pct: 0.80, texto: "Ya queda poco para el siguiente nivel." },
+      { pct: 0.95, texto: "¡Un último empujón!" }
+    ],
+    animar: [
+      "¡Muy bien, Lola!",
+      "¡Qué buena!",
+      "Así me gusta.",
+      "¡Sigue, sigue!",
+      "Eso es, Lola."
+    ],
     poco: "Te quedan pocos movimientos. ¡No aflojes!"
   },
 

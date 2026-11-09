@@ -226,7 +226,9 @@
     };
   }
 
-  function crearMotivador(say, movimientos) {
+  function crearMotivador(say, movimientos, cfg) {
+    cfg = cfg || C.motivacion;
+
     let milestone = 0;
     let lowSaid = false;
     let movesPlayed = 0;
@@ -235,9 +237,9 @@
     return function (snap) {
       const pct = snap.cleared / snap.goal;
 
-      while (milestone < C.motivacion.umbrales.length &&
-             pct >= C.motivacion.umbrales[milestone].pct) {
-        say(C.motivacion.umbrales[milestone].texto);
+      while (milestone < cfg.umbrales.length &&
+             pct >= cfg.umbrales[milestone].pct) {
+        say(cfg.umbrales[milestone].texto);
         milestone++;
       }
 
@@ -245,12 +247,12 @@
         lastMoves = snap.movesLeft;
         movesPlayed++;
 
-        if (movesPlayed % 5 === 0) say(randomPhrase(C.motivacion.animar));
+        if (movesPlayed % 5 === 0) say(randomPhrase(cfg.animar));
       }
 
       if (!lowSaid && snap.movesLeft <= 5) {
         lowSaid = true;
-        say(C.motivacion.poco);
+        say(cfg.poco);
       }
     };
   }
@@ -482,7 +484,7 @@
 
     UI.show(node);
 
-    const motivar = crearMotivador(say, nivel.movimientos);
+    const motivar = crearMotivador(say, nivel.movimientos, C.motivacion);
 
     requestAnimationFrame(() => {
       board = new Match3(boardRoot, {
@@ -707,10 +709,10 @@
       shuffleBtn.querySelector(".power__count").textContent = String(profile.items.shuffle);
     }
 
-    const bubbleText = h("p", { class: "bubble__text", text: C.motivacion.saludo });
+    const bubbleText = h("p", { class: "bubble__text", text: C.motivacionLibre.saludo });
     const bubble = h("div", { class: "bubble" }, bubbleText);
     const say = crearSpeaker(bubble, bubbleText);
-    const motivar = crearMotivador(say, p.movimientos);
+    const motivar = crearMotivador(say, p.movimientos, C.motivacionLibre);
 
     const node = makeScreen([
       h("div", { class: "stack-sm" },
@@ -968,6 +970,34 @@
     ], { center: true, tight: true }));
   }
 
+  /* --- Escena antes de la última pista ------------------------------------- */
+
+  function escenaRegalo() {
+    destroyBoard();
+    Sound.setMusicMode("calm");
+    UI.accent("#ffb020", "#ff5d8f");
+    UI.progress(TOTAL, TOTAL);
+
+    const go = h("button", { class: "btn btn--wide", text: "Volver al menú" });
+    go.addEventListener("click", () => {
+      Sound.tap();
+      menu();
+    });
+
+    const node = h("div", { class: "screen scene" },
+      h("div", { class: "scene__stage" },
+        h("img", { src: C.arte.lolaRegalo, alt: "" })
+      ),
+      h("div", { class: "scene__foot" },
+        h("p", { class: "scene__title", text: "Tu regalo te espera." }),
+        go
+      )
+    );
+
+    UI.show(node);
+    Sound.ok();
+  }
+
   /* --- Final del regalo ---------------------------------------------------- */
 
   function final() {
@@ -980,6 +1010,12 @@
     const place = h("p", { class: "final__place hidden", text: C.final.lugar });
     const message = h("p", { class: "hidden", text: C.final.mensaje });
     const signature = h("p", { class: "signature hidden", text: C.final.firma });
+
+    const ver = h("button", { class: "btn btn--wide hidden", text: "Ver tu regalo" });
+    ver.addEventListener("click", () => {
+      Sound.tap();
+      escenaRegalo();
+    });
 
     const again = h("button", { class: "btn btn--link hidden", text: "Volver al menú" });
     again.addEventListener("click", () => {
@@ -994,7 +1030,7 @@
       ),
       h("div", { class: "clue" }, line),
       place,
-      h("div", { class: "center stack-sm" }, message, signature, again)
+      h("div", { class: "center stack-sm" }, message, signature, ver, again)
     ], { center: true }));
 
     setTimeout(async () => {
@@ -1012,6 +1048,7 @@
       place.classList.remove("hidden");
       message.classList.remove("hidden");
       signature.classList.remove("hidden");
+      ver.classList.remove("hidden");
       again.classList.remove("hidden");
 
       await UI.wait(420);

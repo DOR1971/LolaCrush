@@ -14,11 +14,13 @@ window.REGALO = {
 
   /* --- Arte -------------------------------------------------------------- */
   arte: {
+    saludo: "./assets/saludo-1.jpg",
     portada: "./assets/portada.jpg",
     nivelSuperado: "./assets/nivel-superado.jpg",
     logo: "./assets/icon-512.png",
     lola: "./assets/lola.png",
-    david: "./assets/david.png"
+    david: "./assets/david.png",
+    davidPistas: "./assets/david-pistas.png"
   },
 
   /* --- Portada ----------------------------------------------------------- */
@@ -52,14 +54,55 @@ window.REGALO = {
   },
 
   /* --- Piezas del tablero ------------------------------------------------
-     Tema de boda: tacón, ramo, anillo, pintalabios y novia.
+     Tacón, corazones, anillo, labios y regalo.
      ---------------------------------------------------------------------- */
   tipos: [
     { emoji: "👠", color: "#ff5d8f" },   // tacón
-    { emoji: "💐", color: "#5fd18a" },   // ramo de novia
+    { emoji: "💕", color: "#b388ff" },   // corazones
     { emoji: "💍", color: "#7cc7ff" },   // anillo solitario
-    { emoji: "💄", color: "#ff8a5c" },   // pintalabios
-    { emoji: "👰", color: "#d8c4ff" }    // vestido de novia
+    { emoji: "👄", color: "#ff8a5c" },   // labios
+    { emoji: "🎁", color: "#5fd18a" }    // regalo
+  ],
+
+  /* --- Piezas del modo competitivo ---------------------------------------
+     Cada nivel usa un juego distinto de cinco piezas, cada una con su color.
+     ---------------------------------------------------------------------- */
+  tiposLibres: [
+    [
+      { emoji: "🍓", color: "#5fd18a" },
+      { emoji: "🍋", color: "#b388ff" },
+      { emoji: "🍇", color: "#ffc93c" },
+      { emoji: "🍊", color: "#7cc7ff" },
+      { emoji: "🥝", color: "#ff5d8f" }
+    ],
+    [
+      { emoji: "🍩", color: "#b388ff" },
+      { emoji: "🍪", color: "#5fd18a" },
+      { emoji: "🧁", color: "#7cc7ff" },
+      { emoji: "🍬", color: "#ffc93c" },
+      { emoji: "🍭", color: "#ff5d8f" }
+    ],
+    [
+      { emoji: "🐠", color: "#7cc7ff" },
+      { emoji: "🐙", color: "#ffc93c" },
+      { emoji: "🐚", color: "#b388ff" },
+      { emoji: "🦀", color: "#5fd18a" },
+      { emoji: "🐬", color: "#ff5d8f" }
+    ],
+    [
+      { emoji: "🎈", color: "#5fd18a" },
+      { emoji: "🎉", color: "#b388ff" },
+      { emoji: "🍾", color: "#7cc7ff" },
+      { emoji: "🎁", color: "#ffc93c" },
+      { emoji: "🥳", color: "#ff5d8f" }
+    ],
+    [
+      { emoji: "🐶", color: "#7cc7ff" },
+      { emoji: "🐱", color: "#b388ff" },
+      { emoji: "🐰", color: "#ff5d8f" },
+      { emoji: "🦊", color: "#5fd18a" },
+      { emoji: "🐼", color: "#ffc93c" }
+    ]
   ],
 
   /* --- Niveles ------------------------------------------------------------
@@ -70,21 +113,21 @@ window.REGALO = {
   niveles: [
     {
       titulo: "Calentando",
-      objetivo: 125,
+      objetivo: 135,
       movimientos: 22,
       pista: "Tienes un regalo escondido.",
       lola: "Bien hecho. El armario te lo agradece."
     },
     {
       titulo: "De compras",
-      objetivo: 140,
+      objetivo: 150,
       movimientos: 24,
       pista: "Cuando vas al supermercado, ¿qué necesitas para guardar la compra?",
       lola: "Piensa, Lola. Tú eso lo sabes perfectamente."
     },
     {
       titulo: "En marcha",
-      objetivo: 155,
+      objetivo: 165,
       movimientos: 26,
       pista: "Si no puedes ir en el Tesla, ¿en qué coche vas?",
       lola: "Casi lo tienes. Y no, el Tesla no cuenta."

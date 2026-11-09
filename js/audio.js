@@ -9,6 +9,33 @@ const Sound = (() => {
   let master = null;
   let muted = false;
 
+  /* --- Música de fondo ------------------------------------------------- */
+  let musicBus = null;
+  let musicTimer = null;
+  let musicOn = false;
+  let musicWanted = false;
+  let nextStep = 0;
+  let stepIndex = 0;
+
+  const MODES = {
+    calm: { tempo: 92, cutoff: 1800, lead: 0.25 },
+    upbeat: { tempo: 118, cutoff: 2600, lead: 0.28 }
+  };
+
+  let mode = "calm";
+  let EIGHTH = 60 / MODES[mode].tempo / 2;
+  const LOOP = 32;
+
+  let musicFilter = null;
+
+  /* Progresión I - V - vi - IV en Do mayor. Cada acorde dura un compás. */
+  const CHORDS = [
+    { bass: 48, arp: [60, 64, 67, 72, 67, 64, 60, 64] }, // Do
+    { bass: 43, arp: [55, 59, 62, 67, 62, 59, 55, 59] }, // Sol
+    { bass: 45, arp: [57, 60, 64, 69, 64, 60, 57, 60] }, // La menor
+    { bass: 41, arp: [53, 57, 60, 65, 60, 57, 53, 57] }  // Fa
+  ];
+
   function ensure() {
     if (ctx) {
       if (ctx.state === "suspended") ctx.resume();
@@ -82,6 +109,77 @@ const Sound = (() => {
     src.start();
   }
 
+  function midiToFreq(m) {
+    return 440 * Math.pow(2, (m - 69) / 12);
+  }
+
+  function scheduleStep(step, when) {
+    const bar = Math.floor(step / 8) % 4;
+    const pos = step % 8;
+    const chord = CHORDS[bar];
+
+    const lead = ctx.createOscillator();
+    const lg = ctx.createGain();
+    lead.type = "triangle";
+    lead.frequency.value = midiToFreq(chord.arp[pos]);
+    lg.gain.setValueAtTime(0.0001, when);
+    lg.gain.exponentialRampToValueAtTime(MODES[mode].lead, when + 0.02);
+    lg.gain.exponentialRampToValueAtTime(0.0001, when + EIGHTH * 1.7);
+    lead.connect(lg);
+    lg.connect(musicBus);
+    lead.start(when);
+    lead.stop(when + EIGHTH * 1.8);
+
+    if (pos === 0 || pos === 4) {
+      const bass = ctx.createOscillator();
+      const bg = ctx.createGain();
+      bass.type = "sine";
+      bass.frequency.value = midiToFreq(chord.bass);
+      bg.gain.setValueAtTime(0.0001, when);
+      bg.gain.exponentialRampToValueAtTime(0.30, when + 0.03);
+      bg.gain.exponentialRampToValueAtTime(0.0001, when + EIGHTH * 3.2);
+      bass.connect(bg);
+      bg.connect(musicBus);
+      bass.start(when);
+      bass.stop(when + EIGHTH * 3.3);
+    }
+  }
+
+  function tick() {
+    if (!ctx || !musicOn) return;
+    while (nextStep < ctx.currentTime + 0.25) {
+      scheduleStep(stepIndex, nextStep);
+      nextStep += EIGHTH;
+      stepIndex = (stepIndex + 1) % LOOP;
+    }
+  }
+
+  function ensureBus() {
+    if (musicBus) return;
+    musicBus = ctx.createGain();
+    musicBus.gain.value = 0;
+
+    musicFilter = ctx.createBiquadFilter();
+    musicFilter.type = "lowpass";
+    musicFilter.frequency.value = MODES[mode].cutoff;
+
+    musicBus.connect(musicFilter);
+    musicFilter.connect(master);
+  }
+
+  function haltMusic() {
+    if (!musicOn) return;
+    musicOn = false;
+    clearInterval(musicTimer);
+    musicTimer = null;
+
+    if (musicBus && ctx) {
+      musicBus.gain.cancelScheduledValues(ctx.currentTime);
+      musicBus.gain.setValueAtTime(Math.max(musicBus.gain.value, 0.0001), ctx.currentTime);
+      musicBus.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    }
+  }
+
   return {
     init() {
       ensure();
@@ -94,6 +192,59 @@ const Sound = (() => {
 
     isMuted() {
       return muted;
+    },
+
+    toggleMute() {
+      muted = !muted;
+      if (master) master.gain.value = muted ? 0 : 0.20;
+      return muted;
+    },
+
+    /* --- Música ------------------------------------------------------- */
+
+    startMusic() {
+      const c = ensure();
+      if (!c) return;
+
+      musicWanted = true;
+      if (musicOn) return;
+
+      ensureBus();
+      musicOn = true;
+
+      musicBus.gain.cancelScheduledValues(c.currentTime);
+      musicBus.gain.setValueAtTime(Math.max(musicBus.gain.value, 0.0001), c.currentTime);
+      musicBus.gain.exponentialRampToValueAtTime(0.8, c.currentTime + 1.6);
+
+      nextStep = c.currentTime + 0.15;
+      stepIndex = 0;
+      musicTimer = setInterval(tick, 60);
+      tick();
+    },
+
+    stopMusic() {
+      musicWanted = false;
+      haltMusic();
+    },
+
+    pauseMusic() {
+      haltMusic();
+    },
+
+    resumeMusic() {
+      if (musicWanted) this.startMusic();
+    },
+
+    setMusicMode(next) {
+      if (!MODES[next] || next === mode) return;
+      mode = next;
+      EIGHTH = 60 / MODES[mode].tempo / 2;
+      if (musicFilter) musicFilter.frequency.value = MODES[mode].cutoff;
+
+      if (musicOn) {
+        haltMusic();
+        this.startMusic();
+      }
     },
 
     tap() {
@@ -116,6 +267,21 @@ const Sound = (() => {
       const base = 420 + Math.min(combo || 1, 6) * 55;
       note(base, { dur: 0.09, type: "triangle", gain: 0.75 });
       note(base * 1.5, { dur: 0.11, type: "sine", gain: 0.45, delay: 0.045 });
+    },
+
+    /* Fanfarria corta y ascendente; sube de tono con el combo. */
+    combo(n) {
+      const step = Math.min(n || 2, 7);
+      const base = 392 * Math.pow(2, (step - 2) / 12);
+
+      [0, 4, 7, 12].forEach((semi, i) => {
+        note(base * Math.pow(2, semi / 12), {
+          dur: 0.11,
+          type: "triangle",
+          gain: 0.7,
+          delay: i * 0.055
+        });
+      });
     },
 
     ok() {

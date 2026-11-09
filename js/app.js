@@ -1,6 +1,6 @@
 /* ==========================================================================
    LOLACRUSH — flujo de la aplicación
-   Portada → niveles → pistas → final
+   Presentación → menú → (regalo | competitivo) → final / tienda
    ========================================================================== */
 
 (function () {
@@ -8,8 +8,8 @@
 
   const C = window.REGALO;
   const h = UI.h;
-  const KEY = "lolacrush-v1";
   const TOTAL = C.niveles.length;
+  const PROFILE_KEY = "lolacrush-profile-v1";
 
   const LEVEL_COLORS = [
     ["#ff5d8f", "#ffb020"],
@@ -17,37 +17,67 @@
     ["#2fd3d3", "#7c5cff"]
   ];
 
-  let state = loadState();
+  const SHOP = [
+    {
+      id: "moves",
+      icon: "⚡",
+      name: "+3 movimientos",
+      text: "Tres movimientos extra en la partida.",
+      price: 40
+    },
+    {
+      id: "shuffle",
+      icon: "🔀",
+      name: "Mezclar",
+      text: "Revuelve el tablero cuando se atasque.",
+      price: 25
+    }
+  ];
+
+  /* El modo regalo no guarda progreso; el perfil competitivo sí. */
+  let state = { level: 0, attempts: 0 };
+  let run = null;
   let board = null;
 
-  /* --- Estado ------------------------------------------------------------ */
+  /* --- Perfil competitivo ------------------------------------------------ */
 
-  function loadState() {
+  function loadProfile() {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(PROFILE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed.level === "number") {
-          return { level: parsed.level, attempts: parsed.attempts || 0 };
-        }
+        const p = JSON.parse(raw);
+        return {
+          coins: p.coins || 0,
+          best: p.best || 0,
+          items: {
+            moves: (p.items && p.items.moves) || 0,
+            shuffle: (p.items && p.items.shuffle) || 0
+          }
+        };
       }
-    } catch (err) { /* sin almacenamiento: se juega igual */ }
-    return { level: 0, attempts: 0 };
+    } catch (err) { /* sin almacenamiento */ }
+    return { coins: 0, best: 0, items: { moves: 0, shuffle: 0 } };
   }
 
-  function saveState() {
+  function saveProfile() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(state));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
     } catch (err) { /* ignorar */ }
   }
 
-  if (/[?&]reset\b/.test(location.search)) {
-    state = { level: 0, attempts: 0 };
-    saveState();
+  let profile = loadProfile();
+
+  /* --- Parámetros del modo competitivo ---------------------------------- */
+
+  function paramsLibre(nivel) {
+    return {
+      objetivo: 70 + (nivel - 1) * 35,
+      movimientos: Math.min(22 + Math.floor((nivel - 1) / 2), 30)
+    };
   }
 
-  /* Atajo de pruebas: index.html?nivel=2 abre ese nivel directamente,
-     y ?vista=intro|pista|final abre una pantalla concreta. */
+  /* --- Atajos de pruebas ------------------------------------------------- */
+
   const params = new URLSearchParams(location.search);
   const devLevel = params.get("nivel");
   const devIndex = devLevel
@@ -56,18 +86,34 @@
   const vista = params.get("vista");
   const vistaN = Math.max(1, Math.min(TOTAL, parseInt(params.get("n") || "1", 10) || 1));
 
-  /* --- Arranque ---------------------------------------------------------- */
+  /* --- Sonido ------------------------------------------------------------ */
 
-  const unlock = () => {
-    Sound.init();
-    window.removeEventListener("pointerdown", unlock);
-  };
-  window.addEventListener("pointerdown", unlock);
+  function initAudio() {
+    const unlock = () => {
+      Sound.init();
+      Sound.startMusic();
+      window.removeEventListener("pointerdown", unlock);
+    };
+    window.addEventListener("pointerdown", unlock);
 
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) Sound.pauseMusic();
+      else Sound.resumeMusic();
     });
+  }
+
+  function mountMute() {
+    const btn = h("button", { class: "mute-btn", "aria-label": "Sonido", title: "Sonido" }, "🔊");
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      Sound.init();
+      const off = Sound.toggleMute();
+      btn.textContent = off ? "🔇" : "🔊";
+      btn.classList.toggle("is-muted", off);
+    });
+
+    document.getElementById("app").append(btn);
   }
 
   /* --- Utilidades -------------------------------------------------------- */
@@ -87,7 +133,6 @@
     if (opts.center) wrap.classList.add("center");
     if (opts.tight) wrap.classList.add("wrap--tight");
     if (opts.play) node.classList.add("screen--play");
-    if (opts.bottom) node.classList.add("screen--bottom");
 
     return node;
   }
@@ -123,65 +168,194 @@
     return list[Math.floor(Math.random() * list.length)];
   }
 
-  /* --- Portada ----------------------------------------------------------- */
+  /* --- Bocadillo y frases de ánimo (los usan los dos modos) --------------- */
+
+  function crearSpeaker(bubble, textEl) {
+    const queue = [];
+    let speaking = false;
+
+    function pump() {
+      if (speaking || queue.length === 0) return;
+      speaking = true;
+
+      textEl.textContent = queue.shift();
+      bubble.classList.remove("is-pop");
+      void bubble.offsetWidth;
+      bubble.classList.add("is-pop");
+
+      setTimeout(() => {
+        speaking = false;
+        pump();
+      }, 2300);
+    }
+
+    return function say(text) {
+      if (!text) return;
+      if (queue[queue.length - 1] === text) return;
+
+      queue.push(text);
+      if (queue.length > 2) queue.shift();
+      pump();
+    };
+  }
+
+  function crearMotivador(say, movimientos) {
+    let milestone = 0;
+    let lowSaid = false;
+    let movesPlayed = 0;
+    let lastMoves = movimientos;
+
+    return function (snap) {
+      const pct = snap.cleared / snap.goal;
+
+      while (milestone < C.motivacion.umbrales.length &&
+             pct >= C.motivacion.umbrales[milestone].pct) {
+        say(C.motivacion.umbrales[milestone].texto);
+        milestone++;
+      }
+
+      if (snap.movesLeft !== lastMoves) {
+        lastMoves = snap.movesLeft;
+        movesPlayed++;
+
+        if (movesPlayed % 5 === 0) say(randomPhrase(C.motivacion.animar));
+      }
+
+      if (!lowSaid && snap.movesLeft <= 5) {
+        lowSaid = true;
+        say(C.motivacion.poco);
+      }
+    };
+  }
+
+  /* --- Cartel de combo ---------------------------------------------------- */
+
+  let comboEl = null;
+  let comboTimer = null;
+
+  function mostrarCombo(n) {
+    if (!comboEl) {
+      comboEl = h("div", { class: "combo-burst" },
+        h("span", { class: "combo-burst__text" })
+      );
+      document.getElementById("app").append(comboEl);
+    }
+
+    const texto =
+      n >= 6 ? "¡MEGACOMBO!" :
+      n >= 4 ? "¡SUPERCOMBO!" :
+      n >= 3 ? "¡COMBO x" + n + "!" :
+      "¡COMBO!";
+
+    comboEl.firstElementChild.textContent = texto;
+
+    comboEl.classList.remove("is-on");
+    void comboEl.offsetWidth;
+    comboEl.classList.add("is-on");
+
+    clearTimeout(comboTimer);
+    comboTimer = setTimeout(() => comboEl.classList.remove("is-on"), 950);
+
+    Sound.combo(n);
+    UI.vibrate([12, 30, 12]);
+  }
+
+  function menuLink() {
+    const btn = h("button", { class: "btn btn--link", text: "Volver al menú" });
+    btn.addEventListener("click", () => {
+      Sound.tap();
+      menu();
+    });
+    return btn;
+  }
+
+  function modeCard(icon, title, text, onClick) {
+    const card = h("button", { class: "mode-card" },
+      h("span", { class: "mode-card__icon", text: icon }),
+      h("span", { class: "mode-card__body" },
+        h("span", { class: "mode-card__title", text: title }),
+        h("span", { class: "mode-card__text", text: text })
+      ),
+      h("span", { class: "mode-card__go", text: "›" })
+    );
+
+    card.addEventListener("click", () => {
+      Sound.tap();
+      onClick();
+    });
+
+    return card;
+  }
+
+  /* --- Presentación ------------------------------------------------------ */
 
   function splash() {
     destroyBoard();
+    Sound.setMusicMode("calm");
     UI.accent("#ff5d8f", "#ffb020");
-    UI.progress(state.level, TOTAL);
+    UI.progress(0, TOTAL);
 
-    const done = state.level >= TOTAL;
-    const resume = state.level > 0 && !done;
-
-    const primary = h("button", {
-      class: "btn btn--wide",
-      text: done ? "Ver el final" : resume ? "Continuar" : C.inicio.boton
-    });
-
-    primary.addEventListener("click", () => {
+    const play = h("button", { class: "splash-play", "aria-label": "Jugar" });
+    play.addEventListener("click", () => {
+      Sound.init();
+      Sound.startMusic();
       Sound.tap();
-      if (done) final();
-      else nivelIntro(state.level);
+      menu();
     });
 
-    const children = [
-      h("div", { class: "splash__content" },
-        h("p", { class: "splash__lema", text: C.inicio.lema }),
-        primary,
-        h("p", { class: "small", text: C.inicio.nota })
-      )
-    ];
-
-    if (resume) {
-      const restart = h("button", { class: "btn btn--link", text: "Empezar de nuevo" });
-      restart.addEventListener("click", () => {
-        state = { level: 0, attempts: 0 };
-        saveState();
-        splash();
-      });
-      children.push(h("div", { class: "tc" }, restart));
-    }
-
-    const node = makeScreen(children, { bottom: true });
-
-    paint(node,
-      "linear-gradient(180deg," +
-      " rgba(18,10,24,0) 0%," +
-      " rgba(18,10,24,0) 42%," +
-      " rgba(18,10,24,0.45) 58%," +
-      " rgba(18,10,24,0.88) 72%," +
-      " #120a18 80%," +
-      " #120a18 100%)," +
-      ' url("' + C.arte.portada + '")'
+    const first = h("div", { class: "splash-layer splash-layer--1" },
+      h("img", { class: "splash-img", src: C.arte.saludo, alt: "" })
     );
+
+    const second = h("div", { class: "splash-layer splash-layer--2" },
+      h("img", { class: "splash-img", src: C.arte.portada, alt: "" }),
+      play
+    );
+
+    const node = h("div", { class: "screen screen--flush" }, first, second);
+
+    setTimeout(() => {
+      first.classList.add("is-out");
+      second.classList.add("is-in");
+    }, 3600);
 
     UI.show(node);
   }
 
-  /* --- Introducción de nivel --------------------------------------------- */
+  /* --- Menú de modos ------------------------------------------------------ */
+
+  function menu() {
+    destroyBoard();
+    Sound.setMusicMode("calm");
+    UI.accent("#ff5d8f", "#ffb020");
+    UI.progress(state.level, TOTAL);
+
+    const seguimos = state.level > 0 && state.level < TOTAL;
+    const textoRegalo = seguimos
+      ? "Continúa por el nivel " + (state.level + 1) + "."
+      : "Tres niveles, tres pistas y un regalo escondido.";
+
+    const regalo = modeCard("🎁", "El regalo de David", textoRegalo, () => nivelIntro(state.level));
+    const comp = modeCard("🏆", "Competitivo", "Sube de nivel y suma puntos. Récord: " + profile.best, () => competitivo());
+
+    UI.show(makeScreen([
+      h("div", { class: "center stack-sm" },
+        h("span", { class: "kicker", text: C.juego }),
+        h("h2", { text: "Hola, Lola" }),
+        h("p", { class: "lead", text: "¿A qué quieres jugar?" })
+      ),
+      regalo,
+      comp,
+      h("p", { class: "small tc", text: "Monedas: " + profile.coins })
+    ], { center: true }));
+  }
+
+  /* --- Modo regalo -------------------------------------------------------- */
 
   function nivelIntro(i) {
     destroyBoard();
+    Sound.setMusicMode("calm");
+
     const nivel = C.niveles[i];
     const palette = LEVEL_COLORS[i] || LEVEL_COLORS[0];
 
@@ -195,25 +369,27 @@
     });
 
     UI.show(makeScreen([
+      h("img", { class: "clue-david", src: C.arte.davidPistas, alt: "" }),
       h("div", { class: "center stack-sm" },
         h("span", { class: "kicker", text: "Nivel " + (i + 1) + " de " + TOTAL }),
         h("h2", { text: nivel.titulo }),
-        h("p", { class: "lead", text: "Consigue " + nivel.objetivo + " puntos de moda." })
+        h("p", { class: "lead", text: "Consigue " + nivel.objetivo + " puntos." })
       ),
       h("div", { class: "hud" },
         hudItem("Movimientos", h("span", { class: "hud__value", text: String(nivel.movimientos) })),
         hudItem("Objetivo", h("span", { class: "hud__value", text: String(nivel.objetivo) }))
       ),
       play,
-      h("p", { class: "small tc", text: "Toca dos piezas vecinas o deslízalas para cambiarlas de sitio." }),
-      dots(i)
+      h("p", { class: "small tc", text: "Toca dos piezas vecinas o deslízalas para cambiarlas." }),
+      dots(i),
+      menuLink()
     ], { center: true, tight: true }));
   }
 
-  /* --- Juego -------------------------------------------------------------- */
-
   function jugar(i) {
     destroyBoard();
+    Sound.setMusicMode("calm");
+
     const nivel = C.niveles[i];
     const palette = LEVEL_COLORS[i] || LEVEL_COLORS[0];
 
@@ -225,36 +401,9 @@
     const goalFill = h("div", { class: "goal__fill" });
     const boardRoot = h("div", { class: "board-root" });
 
-    /* --- Bocadillo de Lola --- */
     const bubbleText = h("p", { class: "bubble__text", text: C.motivacion.saludo });
     const bubble = h("div", { class: "bubble" }, bubbleText);
-
-    const queue = [];
-    let speaking = false;
-
-    function pump() {
-      if (speaking || queue.length === 0) return;
-      speaking = true;
-
-      bubbleText.textContent = queue.shift();
-      bubble.classList.remove("is-pop");
-      void bubble.offsetWidth;
-      bubble.classList.add("is-pop");
-
-      setTimeout(() => {
-        speaking = false;
-        pump();
-      }, 2300);
-    }
-
-    function say(text) {
-      if (!text) return;
-      if (queue[queue.length - 1] === text) return;
-
-      queue.push(text);
-      if (queue.length > 2) queue.shift();
-      pump();
-    }
+    const say = crearSpeaker(bubble, bubbleText);
 
     const coach = h("div", { class: "coach" },
       bubble,
@@ -289,12 +438,7 @@
 
     UI.show(node);
 
-    /* --- Frases de ánimo --- */
-    let milestone = 0;
-    let lowSaid = false;
-    let movesPlayed = 0;
-    let lastMoves = nivel.movimientos;
-    let lastCombo = 0;
+    const motivar = crearMotivador(say, nivel.movimientos);
 
     requestAnimationFrame(() => {
       board = new Match3(boardRoot, {
@@ -303,6 +447,7 @@
         types: C.tipos,
         moves: nivel.movimientos,
         goal: nivel.objetivo,
+        onCombo: mostrarCombo,
 
         onUpdate: function (snap) {
           movesValue.textContent = String(snap.movesLeft);
@@ -310,42 +455,17 @@
           goalValue.textContent = Math.min(snap.cleared, snap.goal) + "/" + snap.goal;
           goalFill.style.width = Math.min(100, (snap.cleared / snap.goal) * 100) + "%";
 
-          const pct = snap.cleared / snap.goal;
-
-          while (milestone < C.motivacion.umbrales.length &&
-                 pct >= C.motivacion.umbrales[milestone].pct) {
-            say(C.motivacion.umbrales[milestone].texto);
-            milestone++;
-          }
-
-          if (snap.movesLeft !== lastMoves) {
-            lastMoves = snap.movesLeft;
-            movesPlayed++;
-
-            if (movesPlayed % 5 === 0) say(randomPhrase(C.motivacion.animar));
-          }
-
-          if (snap.combo >= 3 && snap.combo > lastCombo) {
-            lastCombo = snap.combo;
-            say(C.motivacion.combo);
-          }
-
-          if (!lowSaid && snap.movesLeft <= 5) {
-            lowSaid = true;
-            say(C.motivacion.poco);
-          }
+          motivar(snap);
         },
 
         onWin: function () {
           state.level = i + 1;
           state.attempts = 0;
-          saveState();
           recompensa(i);
         },
 
         onLose: function () {
           state.attempts += 1;
-          saveState();
           perdido(i);
         }
       });
@@ -354,10 +474,10 @@
     });
   }
 
-  /* --- Nivel superado ------------------------------------------------------ */
-
   function recompensa(i) {
     destroyBoard();
+    Sound.setMusicMode("calm");
+
     const nivel = C.niveles[i];
     const palette = LEVEL_COLORS[i] || LEVEL_COLORS[0];
 
@@ -378,7 +498,7 @@
     });
 
     const node = makeScreen([
-      h("img", { class: "clue-david", src: C.arte.david, alt: "" }),
+      h("img", { class: "clue-david", src: C.arte.davidPistas, alt: "" }),
       h("div", { class: "center stack-sm" },
         h("span", { class: "kicker", text: "Nivel superado" }),
         h("h2", { text: "Una pista más" })
@@ -406,10 +526,9 @@
     }, 420);
   }
 
-  /* --- Sin movimientos ------------------------------------------------------ */
-
   function perdido(i) {
     destroyBoard();
+
     const nivel = C.niveles[i];
     const palette = LEVEL_COLORS[i] || LEVEL_COLORS[0];
 
@@ -436,19 +555,322 @@
         Sound.tap();
         state.level = i + 1;
         state.attempts = 0;
-        saveState();
         recompensa(i);
       });
       children.push(h("div", { class: "tc" }, skip));
     }
 
+    children.push(h("div", { class: "tc" }, menuLink()));
+
     UI.show(makeScreen(children, { center: true }));
   }
 
-  /* --- Final ---------------------------------------------------------------- */
+  /* --- Modo competitivo --------------------------------------------------- */
+
+  function competitivo() {
+    destroyBoard();
+    Sound.setMusicMode("upbeat");
+    UI.accent("#2fd3d3", "#7c5cff");
+    UI.progress(0, 0);
+
+    const jugarBtn = h("button", { class: "btn btn--wide", text: "Jugar" });
+    jugarBtn.addEventListener("click", () => {
+      Sound.tap();
+      iniciarRun();
+    });
+
+    const tiendaBtn = h("button", { class: "btn btn--ghost btn--wide", text: "Tienda · " + profile.coins + " monedas" });
+    tiendaBtn.addEventListener("click", () => {
+      Sound.tap();
+      tienda();
+    });
+
+    UI.show(makeScreen([
+      h("div", { class: "center stack-sm" },
+        h("span", { class: "kicker", text: "Modo competitivo" }),
+        h("h2", { text: "A por puntos" }),
+        h("p", { class: "lead", text: "Cada nivel pide más. Empieza con 70 puntos y 22 movimientos." })
+      ),
+      h("div", { class: "hud" },
+        hudItem("Récord", h("span", { class: "hud__value", text: String(profile.best) })),
+        hudItem("Monedas", h("span", { class: "hud__value", text: String(profile.coins) }))
+      ),
+      jugarBtn,
+      tiendaBtn,
+      h("div", { class: "tc" }, menuLink())
+    ], { center: true, tight: true }));
+  }
+
+  function iniciarRun() {
+    run = { level: 1, score: 0 };
+    jugarLibre();
+  }
+
+  function powerButton(icon, label, count, onClick) {
+    const countEl = h("span", { class: "power__count", text: String(count) });
+
+    const btn = h("button", { class: "power", disabled: count <= 0 },
+      h("span", { class: "power__icon", text: icon }),
+      h("span", { class: "power__label", text: label }),
+      countEl
+    );
+
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function jugarLibre() {
+    destroyBoard();
+    Sound.setMusicMode("upbeat");
+
+    const nivel = run.level;
+    const p = paramsLibre(nivel);
+    const palette = ["#2fd3d3", "#ffb020", "#ff5d8f", "#a06bff"][(nivel - 1) % 4];
+
+    UI.accent(palette, "#7c5cff");
+    UI.progress(0, 0);
+
+    const movesValue = h("span", { class: "hud__value", text: String(p.movimientos) });
+    const goalValue = h("span", { class: "hud__value", text: "0/" + p.objetivo });
+    const goalFill = h("div", { class: "goal__fill" });
+    const boardRoot = h("div", { class: "board-root" });
+    const totalLabel = h("span", { class: "small", text: "Nivel " + nivel + " · Total " + run.score });
+
+    const movesBtn = powerButton("⚡", "+3", profile.items.moves, () => {
+      if (!board || board.ended || profile.items.moves <= 0) return;
+      profile.items.moves -= 1;
+      saveProfile();
+      refreshPower();
+      board.addMoves(3);
+      Sound.ok();
+      UI.toast("+3 movimientos");
+    });
+
+    const shuffleBtn = powerButton("🔀", "Mezclar", profile.items.shuffle, () => {
+      if (!board || board.ended || profile.items.shuffle <= 0) return;
+      profile.items.shuffle -= 1;
+      saveProfile();
+      refreshPower();
+      board.powerShuffle();
+      Sound.whoosh();
+    });
+
+    function refreshPower() {
+      movesBtn.disabled = profile.items.moves <= 0;
+      shuffleBtn.disabled = profile.items.shuffle <= 0;
+      movesBtn.querySelector(".power__count").textContent = String(profile.items.moves);
+      shuffleBtn.querySelector(".power__count").textContent = String(profile.items.shuffle);
+    }
+
+    const bubbleText = h("p", { class: "bubble__text", text: C.motivacion.saludo });
+    const bubble = h("div", { class: "bubble" }, bubbleText);
+    const say = crearSpeaker(bubble, bubbleText);
+    const motivar = crearMotivador(say, p.movimientos);
+
+    const node = makeScreen([
+      h("div", { class: "stack-sm" },
+        h("div", { class: "play-head" },
+          h("img", { class: "play-logo", src: C.arte.logo, alt: "" }),
+          h("div", { class: "play-head__text" },
+            h("span", { class: "play-title", text: C.juego }),
+            h("span", { class: "kicker", text: "Competitivo · Nivel " + nivel })
+          )
+        ),
+        h("div", { class: "hud" },
+          hudItem("Movimientos", movesValue),
+          hudItem("Puntos", goalValue)
+        ),
+        h("div", { class: "goal" }, goalFill)
+      ),
+      boardRoot,
+      h("div", { class: "coach" },
+        bubble,
+        h("div", { class: "coach__row" },
+          h("img", { class: "coach__mascot coach__mascot--lola", src: C.arte.lola, alt: "" }),
+          h("div", { class: "coach__center" },
+            h("div", { class: "powerbar" }, movesBtn, shuffleBtn),
+            totalLabel
+          ),
+          h("img", { class: "coach__mascot coach__mascot--david", src: C.arte.david, alt: "" })
+        )
+      )
+    ], { play: true, tight: true });
+
+    UI.show(node);
+
+    requestAnimationFrame(() => {
+      board = new Match3(boardRoot, {
+        rows: 8,
+        cols: 8,
+        types: C.tiposLibres[(nivel - 1) % C.tiposLibres.length],
+        moves: p.movimientos,
+        goal: p.objetivo,
+        onCombo: mostrarCombo,
+
+        onUpdate: function (snap) {
+          movesValue.textContent = String(snap.movesLeft);
+          movesValue.classList.toggle("is-low", snap.movesLeft <= 5);
+          goalValue.textContent = Math.min(snap.cleared, snap.goal) + "/" + snap.goal;
+          goalFill.style.width = Math.min(100, (snap.cleared / snap.goal) * 100) + "%";
+          totalLabel.textContent = "Nivel " + nivel + " · Total " + (run.score + snap.cleared);
+
+          motivar(snap);
+        },
+
+        onWin: function () {
+          run.score += board ? board.cleared : p.objetivo;
+          run.level += 1;
+          nivelSuperadoLibre(nivel);
+        },
+
+        onLose: function () {
+          run.score += board ? board.cleared : 0;
+          finPartida();
+        }
+      });
+
+      board.start();
+    });
+  }
+
+  function nivelSuperadoLibre(nivel) {
+    destroyBoard();
+    Sound.setMusicMode("upbeat");
+    UI.accent("#2fd3d3", "#ffb020");
+    UI.progress(0, 0);
+
+    const next = paramsLibre(run.level);
+
+    const go = h("button", { class: "btn btn--wide", text: "Siguiente nivel" });
+    go.addEventListener("click", () => {
+      Sound.tap();
+      jugarLibre();
+    });
+
+    UI.show(makeScreen([
+      h("img", { class: "clue-david", src: C.arte.davidPistas, alt: "" }),
+      h("div", { class: "center stack-sm" },
+        h("span", { class: "kicker", text: "Nivel " + nivel + " superado" }),
+        h("h2", { text: "¡Bien!" }),
+        h("p", { class: "lead", text: "Llevas " + run.score + " puntos." })
+      ),
+      h("div", { class: "clue" },
+        h("span", { class: "clue__label", text: "Siguiente" }),
+        h("p", { class: "clue__text", text: "Nivel " + run.level + " · " + next.objetivo + " puntos · " + next.movimientos + " movimientos" })
+      ),
+      go,
+      h("div", { class: "tc" }, menuLink())
+    ], { center: true }));
+
+    UI.confetti({ count: 50 });
+  }
+
+  function finPartida() {
+    destroyBoard();
+    Sound.setMusicMode("upbeat");
+    UI.accent("#ff5d8f", "#ffb020");
+    UI.progress(0, 0);
+
+    const ganadas = Math.floor(run.score / 25) + 5 * (run.level - 1);
+    profile.coins += ganadas;
+
+    const nuevoRecord = run.score > profile.best;
+    if (nuevoRecord) profile.best = run.score;
+    saveProfile();
+
+    const again = h("button", { class: "btn btn--wide", text: "Otra vez" });
+    again.addEventListener("click", () => {
+      Sound.tap();
+      iniciarRun();
+    });
+
+    const shop = h("button", { class: "btn btn--ghost btn--wide", text: "Tienda · " + profile.coins + " monedas" });
+    shop.addEventListener("click", () => {
+      Sound.tap();
+      tienda();
+    });
+
+    UI.show(makeScreen([
+      h("div", { class: "center stack-sm" },
+        h("span", { class: "kicker", text: "Fin de la partida" }),
+        h("h2", { text: run.score + " puntos" }),
+        h("p", { class: "lead", text: nuevoRecord ? "¡Nuevo récord!" : "Récord: " + profile.best })
+      ),
+      h("div", { class: "clue" },
+        h("span", { class: "clue__label", text: "Has ganado" }),
+        h("p", { class: "clue__text", text: "+" + ganadas + " monedas" })
+      ),
+      again,
+      shop,
+      h("div", { class: "tc" }, menuLink())
+    ], { center: true }));
+
+    if (nuevoRecord) {
+      UI.confetti({ count: 90 });
+      Sound.win();
+    }
+  }
+
+  /* --- Tienda -------------------------------------------------------------- */
+
+  function tienda() {
+    destroyBoard();
+    Sound.setMusicMode("upbeat");
+    UI.accent("#2fd3d3", "#ffb020");
+    UI.progress(0, 0);
+
+    const items = SHOP.map((item) => {
+      const tengo = profile.items[item.id] || 0;
+      const puede = profile.coins >= item.price;
+
+      const buy = h("button", {
+        class: "btn btn--small" + (puede ? "" : " is-disabled"),
+        text: item.price + " 🪙",
+        disabled: !puede
+      });
+
+      buy.addEventListener("click", () => {
+        if (profile.coins < item.price) return;
+        profile.coins -= item.price;
+        profile.items[item.id] = (profile.items[item.id] || 0) + 1;
+        saveProfile();
+        Sound.ok();
+        tienda();
+      });
+
+      return h("div", { class: "shop-item" },
+        h("span", { class: "shop-item__icon", text: item.icon }),
+        h("span", { class: "shop-item__body" },
+          h("span", { class: "shop-item__name", text: item.name }),
+          h("span", { class: "shop-item__text", text: item.text }),
+          h("span", { class: "shop-item__own", text: "Tienes: " + tengo })
+        ),
+        buy
+      );
+    });
+
+    const back = h("button", { class: "btn btn--ghost btn--wide", text: "Volver" });
+    back.addEventListener("click", () => {
+      Sound.tap();
+      competitivo();
+    });
+
+    UI.show(makeScreen([
+      h("div", { class: "center stack-sm" },
+        h("span", { class: "kicker", text: "Tienda" }),
+        h("h2", { text: profile.coins + " monedas" }),
+        h("p", { class: "small", text: "Gana monedas jugando al modo competitivo." })
+      ),
+      ...items,
+      back
+    ], { center: true, tight: true }));
+  }
+
+  /* --- Final del regalo ---------------------------------------------------- */
 
   function final() {
     destroyBoard();
+    Sound.setMusicMode("calm");
     UI.accent("#ffb020", "#ff5d8f");
     UI.progress(TOTAL, TOTAL);
 
@@ -457,11 +879,10 @@
     const message = h("p", { class: "hidden", text: C.final.mensaje });
     const signature = h("p", { class: "signature hidden", text: C.final.firma });
 
-    const again = h("button", { class: "btn btn--link hidden", text: "Volver a jugar" });
+    const again = h("button", { class: "btn btn--link hidden", text: "Volver al menú" });
     again.addEventListener("click", () => {
       state = { level: 0, attempts: 0 };
-      saveState();
-      splash();
+      menu();
     });
 
     UI.show(makeScreen([
@@ -498,9 +919,19 @@
 
   /* --- Inicio ---------------------------------------------------------------- */
 
-  if (vista === "intro") nivelIntro(vistaN - 1);
+  initAudio();
+  mountMute();
+
+  if (vista === "menu") menu();
+  else if (vista === "intro") nivelIntro(vistaN - 1);
   else if (vista === "pista") recompensa(vistaN - 1);
   else if (vista === "final") final();
+  else if (vista === "tienda") tienda();
+  else if (vista === "competitivo") competitivo();
+  else if (vista === "libre") {
+    run = { level: Math.max(1, parseInt(params.get("n") || "1", 10) || 1), score: 0 };
+    jugarLibre();
+  }
   else if (devIndex >= 0) jugar(devIndex);
   else splash();
 })();

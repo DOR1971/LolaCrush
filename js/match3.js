@@ -17,6 +17,7 @@ class Match3 {
     this.onUpdate = opts.onUpdate || function () {};
     this.onWin = opts.onWin || function () {};
     this.onLose = opts.onLose || function () {};
+    this.onCombo = opts.onCombo || null;
 
     this.el = document.createElement("div");
     this.el.className = "board";
@@ -226,6 +227,8 @@ class Match3 {
       combo++;
       this.cleared += runs.size;
       Sound.match(combo);
+
+      if (this.onCombo && combo >= 2) this.onCombo(combo);
 
       runs.forEach((t) => t.face.classList.add("is-clearing"));
       await wait(190);
@@ -473,6 +476,22 @@ class Match3 {
 
   adjacent(a, b) {
     return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
+  }
+
+  /* --- Ayudas externas (tienda) ----------------------------------------- */
+
+  addMoves(n) {
+    if (this.ended) return;
+    this.movesLeft += n;
+    this.emit();
+  }
+
+  async powerShuffle() {
+    if (this.busy || this.ended) return false;
+    this.busy = true;
+    await this.reshuffle();
+    this.busy = false;
+    return true;
   }
 
   /* --- Estado ------------------------------------------------------------ */

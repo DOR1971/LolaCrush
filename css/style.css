@@ -1,0 +1,802 @@
+/* ==========================================================================
+   FASHION MATCH — hoja de estilos
+   Pensada para Android (Chrome). Sin frameworks, sin dependencias.
+   ========================================================================== */
+
+:root {
+  --bg: #120a18;
+  --bg-2: #1d1027;
+  --ink: #ffffff;
+  --ink-soft: rgba(255, 255, 255, 0.74);
+  --ink-dim: rgba(255, 255, 255, 0.46);
+  --accent: #ff5d8f;
+  --accent-2: #ffb020;
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.09);
+  --stroke: rgba(255, 255, 255, 0.12);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  --radius: 22px;
+  --radius-sm: 14px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.45;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+/* --------------------------------------------------------------------------
+   Fondo
+   -------------------------------------------------------------------------- */
+
+.bg {
+  position: absolute;
+  inset: -20%;
+  z-index: -2;
+  background:
+    radial-gradient(42% 38% at 18% 8%, color-mix(in srgb, var(--accent) 40%, transparent) 0%, transparent 68%),
+    radial-gradient(46% 42% at 88% 22%, color-mix(in srgb, var(--accent-2) 28%, transparent) 0%, transparent 70%),
+    radial-gradient(60% 50% at 50% 108%, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 72%),
+    linear-gradient(168deg, var(--bg-2) 0%, var(--bg) 58%, #0a0510 100%);
+  transition: background 900ms var(--ease);
+  animation: drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-1.6%, 1.4%, 0) scale(1.06); }
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------------------
+   Barra superior
+   -------------------------------------------------------------------------- */
+
+.progress {
+  position: relative;
+  z-index: 5;
+  height: 3px;
+  margin-top: var(--safe-top);
+  background: rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.progress__bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: width 600ms var(--ease);
+}
+
+/* --------------------------------------------------------------------------
+   Pantallas
+   -------------------------------------------------------------------------- */
+
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding:
+    clamp(16px, 4vw, 28px)
+    clamp(14px, 4vw, 26px)
+    calc(clamp(16px, 4vw, 28px) + var(--safe-bottom));
+  opacity: 0;
+  transform: translateY(16px) scale(0.985);
+  transition: opacity 380ms var(--ease), transform 460ms var(--ease);
+  pointer-events: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.screen.is-active {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.screen.is-leaving {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.985);
+}
+
+.screen--play {
+  justify-content: flex-start;
+  padding-top: clamp(10px, 2.6vw, 18px);
+}
+
+/* El bloque de juego ocupa el alto disponible: HUD arriba, tablero debajo
+   y pie al fondo. Así el tablero no queda flotando en el centro. */
+.screen--play .wrap {
+  flex: 1 1 auto;
+}
+
+.board-root {
+  margin-top: clamp(8px, 2.4vw, 16px);
+}
+
+/* --------------------------------------------------------------------------
+   Cabecera del juego con el logo
+   -------------------------------------------------------------------------- */
+
+.play-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.play-logo {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+}
+
+.play-head__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.play-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 1.02rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* David entregando la pista */
+.clue-david {
+  display: block;
+  width: auto;
+  height: clamp(108px, 30vw, 150px);
+  margin: 0 auto;
+  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.55));
+}
+
+/* --------------------------------------------------------------------------
+   Lola y David al pie del tablero, con el bocadillo de ánimo
+   -------------------------------------------------------------------------- */
+
+.coach {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+}
+
+.coach__row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.coach__center {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 10px;
+}
+
+.coach__mascot {
+  display: block;
+  width: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+}
+
+.coach__mascot--lola { height: clamp(88px, 32vw, 140px); }
+.coach__mascot--david { height: clamp(76px, 27vw, 120px); }
+
+.bubble {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 11px 17px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  transform-origin: 26px 100%;
+}
+
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-right: 1px solid var(--stroke);
+  border-bottom: 1px solid var(--stroke);
+  transform: rotate(45deg);
+}
+
+.bubble__text {
+  font-size: 1.02rem;
+  line-height: 1.32;
+  color: var(--ink);
+}
+
+.bubble.is-pop {
+  animation: bubblePop 380ms var(--ease);
+}
+
+/* Solo escala: el texto siempre es visible. */
+@keyframes bubblePop {
+  0% { transform: scale(0.94); }
+  55% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+.wrap {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 3vw, 20px);
+}
+
+.wrap--tight {
+  gap: clamp(8px, 2.2vw, 14px);
+}
+
+.center {
+  align-items: center;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   Tipografía
+   -------------------------------------------------------------------------- */
+
+.kicker {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(2.2rem, 10vw, 3.2rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.45rem, 6vw, 2rem);
+  line-height: 1.14;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+p {
+  color: var(--ink-soft);
+  font-size: clamp(0.98rem, 4.1vw, 1.06rem);
+  text-wrap: pretty;
+}
+
+.lead {
+  font-size: clamp(1.02rem, 4.4vw, 1.12rem);
+  color: var(--ink-soft);
+}
+
+.small {
+  font-size: 0.86rem;
+  color: var(--ink-dim);
+}
+
+.hl {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Botones
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55em;
+  min-height: 54px;
+  padding: 0.9em 1.6em;
+  border-radius: 999px;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #1a0d14;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 32%, transparent);
+  transition: transform 160ms var(--ease), box-shadow 220ms var(--ease), filter 220ms var(--ease);
+}
+
+.btn:active {
+  transform: scale(0.965);
+}
+
+.btn--wide {
+  width: 100%;
+}
+
+.btn--ghost {
+  color: var(--ink);
+  background: var(--glass-strong);
+  border: 1px solid var(--stroke);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
+}
+
+.btn--small {
+  min-height: 42px;
+  padding: 0.55em 1em;
+  font-size: 0.88rem;
+}
+
+.btn--link {
+  min-height: 0;
+  padding: 0;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--ink-dim);
+  background: none;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Fondo de arte desenfocado: se usa detrás de contenido que debe leerse. */
+.screen-bg {
+  position: absolute;
+  inset: -14px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.screen-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  filter: blur(16px) brightness(0.62) saturate(1.15);
+  transform: scale(1.09);
+}
+
+.screen-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(14, 8, 20, 0.55) 0%, rgba(14, 8, 20, 0.86) 100%);
+}
+
+.screen--veil > .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Portada
+   -------------------------------------------------------------------------- */
+
+.screen--bottom {
+  justify-content: flex-end;
+}
+
+.splash__content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding-bottom: 6px;
+}
+
+.splash__lema {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.12rem, 5vw, 1.42rem);
+  font-weight: 400;
+  line-height: 1.28;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.65);
+}
+
+/* --------------------------------------------------------------------------
+   Puntos de nivel
+   -------------------------------------------------------------------------- */
+
+.dots {
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 260ms var(--ease), transform 260ms var(--ease);
+}
+
+.dot.is-done {
+  background: var(--accent);
+  transform: scale(1.15);
+}
+
+.dot.is-now {
+  background: var(--accent-2);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* --------------------------------------------------------------------------
+   HUD del juego
+   -------------------------------------------------------------------------- */
+
+.hud {
+  display: flex;
+  gap: 8px;
+}
+
+.hud__item {
+  flex: 1 1 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.5em 0.8em;
+  border-radius: 13px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+}
+
+.hud__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.hud__value {
+  font-size: 1.08rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__value.is-low {
+  color: #ff7a8a;
+}
+
+.goal {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.goal__fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 420ms var(--ease);
+}
+
+/* --------------------------------------------------------------------------
+   Tablero
+   -------------------------------------------------------------------------- */
+
+.board {
+  position: relative;
+  margin: 0 auto;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 22px 50px rgba(0, 0, 0, 0.38);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--tile, 40px);
+  height: var(--tile, 40px);
+  padding: calc(var(--tile, 40px) * 0.05);
+  transition: transform 250ms var(--ease);
+  will-change: transform;
+  z-index: 1;
+}
+
+.tile.is-selected {
+  z-index: 3;
+}
+
+.tile__face {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 26%;
+  font-size: calc(var(--tile, 40px) * 0.52);
+  line-height: 1;
+  background:
+    linear-gradient(
+      152deg,
+      color-mix(in srgb, var(--tc, #888) 36%, #1b1024),
+      color-mix(in srgb, var(--tc, #888) 12%, #120a18)
+    );
+  border: 1px solid color-mix(in srgb, var(--tc, #888) 58%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 3px 10px rgba(0, 0, 0, 0.32);
+  transition: transform 180ms var(--ease), opacity 180ms var(--ease), box-shadow 200ms var(--ease);
+}
+
+.tile.is-selected .tile__face {
+  transform: scale(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 2px #fff,
+    0 0 22px color-mix(in srgb, var(--tc, #fff) 85%, transparent);
+}
+
+.tile__face.is-clearing {
+  transform: scale(0.15) rotate(38deg);
+  opacity: 0;
+}
+
+.tile.is-hint .tile__face {
+  animation: hintPulse 1s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* --------------------------------------------------------------------------
+   Tarjeta de pista
+   -------------------------------------------------------------------------- */
+
+.clue {
+  position: relative;
+  padding: clamp(22px, 6vw, 32px) clamp(18px, 5vw, 26px);
+  border-radius: var(--radius);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  text-align: center;
+}
+
+.clue__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 85%, #fff);
+}
+
+.clue__text {
+  margin-top: 0.55em;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.3rem, 6vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.24;
+  letter-spacing: -0.01em;
+}
+
+.clue__note {
+  margin-top: 1em;
+  font-size: 0.92rem;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+
+/* --------------------------------------------------------------------------
+   Final
+   -------------------------------------------------------------------------- */
+
+.final__title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.4rem, 6.2vw, 1.95rem);
+  line-height: 1.28;
+  letter-spacing: -0.01em;
+}
+
+.final__word {
+  display: inline-block;
+  font-style: italic;
+  color: var(--accent-2);
+  animation: popWord 620ms var(--ease);
+}
+
+/* Solo mueve la escala: si la animación no llegara a ejecutarse, la palabra
+   seguiría siendo visible. Nunca se anima la opacidad. */
+@keyframes popWord {
+  0% { transform: scale(0.62) translateY(6px); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.final__place {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.25rem, 5.6vw, 1.7rem);
+  line-height: 1.3;
+  color: var(--accent-2);
+}
+
+.signature {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.typewriter::after {
+  content: "▌";
+  margin-left: 0.06em;
+  animation: blink 900ms steps(2) infinite;
+  opacity: 0.7;
+}
+
+.typewriter.is-done::after {
+  content: "";
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Efectos
+   -------------------------------------------------------------------------- */
+
+.fx {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(26px + var(--safe-bottom));
+  z-index: 60;
+  transform: translate(-50%, 18px);
+  max-width: 88vw;
+  padding: 0.7em 1.2em;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  text-align: center;
+  color: var(--ink);
+  background: rgba(20, 12, 26, 0.94);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 260ms var(--ease), transform 320ms var(--ease);
+}
+
+.toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* --------------------------------------------------------------------------
+   Utilidades
+   -------------------------------------------------------------------------- */
+
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.stack-sm { display: flex; flex-direction: column; gap: 7px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.tc { text-align: center; }
+.hidden { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

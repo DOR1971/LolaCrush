@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#120a18">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="description" content="LolaCrush: tres niveles, tres pistas y un regalo escondido.">
+<title>LolaCrush</title>
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./assets/icon-192.png">
+<link rel="apple-touch-icon" href="./assets/icon-192.png">
+
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LolaCrush">
+
+<!-- Vista previa al pegar el enlace en WhatsApp / Telegram. -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="LolaCrush">
+<meta property="og:description" content="Tres niveles, tres pistas y un regalo escondido.">
+<meta property="og:image" content="https://dor1971.github.io/LolaCrush/assets/og.jpg">
+<meta property="og:url" content="https://dor1971.github.io/LolaCrush/">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="bg" class="bg" aria-hidden="true"></div>
+  <div id="grain" class="grain" aria-hidden="true"></div>
+
+  <div id="progress" class="progress" hidden>
+    <div id="progressBar" class="progress__bar"></div>
+  </div>
+
+  <main id="stage" class="stage" aria-live="polite"></main>
+
+  <canvas id="fx" class="fx" aria-hidden="true"></canvas>
+</div>
+
+<noscript>
+  <p style="color:#fff;font-family:sans-serif;padding:2rem;text-align:center">
+    Necesitas activar JavaScript para ver este regalo.
+  </p>
+</noscript>
+
+<script src="./js/config.js"></script>
+<script src="./js/audio.js"></script>
+<script src="./js/ui.js"></script>
+<script src="./js/match3.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

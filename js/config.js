@@ -14,14 +14,17 @@ window.REGALO = {
 
   /* --- Arte -------------------------------------------------------------- */
   arte: {
-    saludo: "./assets/saludo-1.jpg",
-    portada: "./assets/portada.jpg",
+    introVideo: "./assets/intro.mp4",
+    introPoster: "./assets/intro-poster.jpg",
+    presentacionVideo: "./assets/presentacion.mp4",
+    presentacionPoster: "./assets/presentacion-poster.jpg",
+    regaloVideo: "./assets/regalo.mp4",
+    regaloPoster: "./assets/regalo-poster.jpg",
     nivelSuperado: "./assets/nivel-superado.jpg",
-    lolaRegalo: "./assets/lola-regalo.jpg",
     logo: "./assets/icon-512.png",
-    lola: "./assets/lola.png",
+    lola: "./assets/lola-anim.webp",
     david: "./assets/david.png",
-    davidPistas: "./assets/david-pistas.png"
+    davidPistas: "./assets/david-anim.webp"
   },
 
   /* --- Portada ----------------------------------------------------------- */

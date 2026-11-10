@@ -204,6 +204,62 @@ const UI = (() => {
     }
   }
 
+  /* --- Efectos de tablero ------------------------------------------------ */
+
+  function floatScore(x, y, text) {
+    const el = h("span", { class: "float-score", text });
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    document.body.append(el);
+    requestAnimationFrame(() => el.classList.add("is-up"));
+    setTimeout(() => el.remove(), 900);
+  }
+
+  function shake() {
+    const app = document.getElementById("app");
+    app.classList.remove("is-shake");
+    void app.offsetWidth;
+    app.classList.add("is-shake");
+  }
+
+  let flashEl = null;
+
+  function flash() {
+    if (!flashEl) {
+      flashEl = h("div", { class: "flash" });
+      document.getElementById("app").append(flashEl);
+    }
+    flashEl.classList.remove("is-on");
+    void flashEl.offsetWidth;
+    flashEl.classList.add("is-on");
+    setTimeout(() => flashEl.classList.remove("is-on"), 360);
+  }
+
+  function burst(x, y, colors) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const palette = colors || ["#ffffff", "#ffd166", "#ff8ab0"];
+    for (let i = 0; i < 12; i++) {
+      particles.push({
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 5.5,
+        vy: (Math.random() - 0.8) * 5.5,
+        size: 2.5 + Math.random() * 4,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        color: palette[(Math.random() * palette.length) | 0],
+        life: 1,
+        shape: Math.random() > 0.5 ? "rect" : "circle"
+      });
+    }
+
+    if (!running) {
+      running = true;
+      requestAnimationFrame(loop);
+    }
+  }
+
   /* --- Máquina de escribir ---------------------------------------------- */
 
   function typewriter(el, text, speed = 30) {
@@ -250,6 +306,7 @@ const UI = (() => {
 
   return {
     h, show, screen, progress, accent, vibrate, toast, confetti,
+    floatScore, shake, flash, burst,
     typewriter, wait, shuffle, stage
   };
 })();

@@ -58,6 +58,7 @@
           coins: p.coins || 0,
           best: best,
           lastName: p.lastName || "Lola",
+          lastDaily: p.lastDaily || "",
           items: {
             moves: (p.items && p.items.moves) || 0,
             shuffle: (p.items && p.items.shuffle) || 0
@@ -70,6 +71,7 @@
       coins: 0,
       best: 0,
       lastName: "Lola",
+      lastDaily: "",
       items: { moves: 0, shuffle: 0 },
       scores: []
     };
@@ -82,6 +84,51 @@
   }
 
   let profile = loadProfile();
+
+  /* --- Ajustes (persistidos aparte del perfil) ---------------------------- */
+
+  const SETTINGS_KEY = "lolacrush-settings-v1";
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (err) { return {}; }
+  }
+
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (err) { /* ignorar */ }
+  }
+
+  let settings = loadSettings();
+
+  function monedaDiaria() {
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (profile.lastDaily === hoy) return 0;
+    profile.lastDaily = hoy;
+    profile.coins += 1;
+    saveProfile();
+    return 1;
+  }
+
+  function compartir() {
+    const url = location.href.split("?")[0].split("#")[0];
+    const data = { title: "LolaCrush", text: "Un regalo para Lola", url };
+
+    if (navigator.share) {
+      navigator.share(data).catch(() => { /* cancelado */ });
+      return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => UI.toast("Enlace copiado"),
+        () => UI.toast(url, 4000)
+      );
+    } else {
+      UI.toast(url, 4000);
+    }
+  }
 
   function guardarPuntuacion(name, score) {
     profile.scores.push({ name: name, score: score });
@@ -130,12 +177,21 @@
   }
 
   function mountMute() {
-    const btn = h("button", { class: "mute-btn", "aria-label": "Sonido", title: "Sonido" }, "🔊");
+    const muted = !!settings.muted;
+    const btn = h("button", {
+      class: "mute-btn" + (muted ? " is-muted" : ""),
+      "aria-label": "Sonido",
+      title: "Sonido"
+    }, muted ? "🔇" : "🔊");
+
+    if (muted) Sound.setMuted(true);
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       Sound.init();
       const off = Sound.toggleMute();
+      settings.muted = off;
+      saveSettings();
       btn.textContent = off ? "🔇" : "🔊";
       btn.classList.toggle("is-muted", off);
     });
@@ -298,6 +354,37 @@
     return btn;
   }
 
+  function shareLink() {
+    const btn = h("button", { class: "btn btn--link", text: "Compartir" });
+    btn.addEventListener("click", () => {
+      Sound.tap();
+      compartir();
+    });
+    return btn;
+  }
+
+  function installHint() {
+    if (settings.seenInstall) return null;
+    settings.seenInstall = true;
+    saveSettings();
+    return h("p", { class: "small tc", text: "Consejo: menú del navegador (⋮) → «Añadir a pantalla de inicio»." });
+  }
+
+  function tutorialHint() {
+    if (settings.seenTutorial) return;
+    if (!board) return;
+    const move = board.findAnyMove();
+    if (!move) return;
+
+    board.hintCells(move[0], move[1]);
+    settings.seenTutorial = true;
+    saveSettings();
+
+    setTimeout(() => {
+      if (board) board.clearHints();
+    }, 3800);
+  }
+
   function modeCard(icon, title, text, onClick) {
     const card = h("button", { class: "mode-card" },
       h("span", { class: "mode-card__icon", text: icon }),
@@ -341,6 +428,16 @@
     UI.accent("#ff5d8f", "#ffb020");
     UI.progress(0, TOTAL);
 
+    const present = h("video", {
+      class: "splash-img",
+      poster: C.arte.presentacionPoster,
+      preload: "auto"
+    });
+    present.muted = true;
+    present.playsInline = true;
+    present.loop = true;
+    present.src = C.arte.presentacionVideo;
+
     const play = h("button", { class: "splash-play", "aria-label": "Jugar" });
     play.addEventListener("click", () => {
       Sound.init();
@@ -349,21 +446,64 @@
       menu();
     });
 
-    const first = h("div", { class: "splash-layer splash-layer--1" },
-      h("img", { class: "splash-img", src: C.arte.saludo, alt: "" })
-    );
-
     const second = h("div", { class: "splash-layer splash-layer--2" },
-      h("img", { class: "splash-img", src: C.arte.portada, alt: "" }),
+      h("img", { class: "splash-img", src: C.arte.presentacionPoster, alt: "" }),
+      present,
       play
     );
 
-    const node = h("div", { class: "screen screen--flush" }, first, second);
+    const node = h("div", { class: "screen screen--flush" }, second);
 
-    setTimeout(() => {
-      first.classList.add("is-out");
+    if (settings.seenIntro) {
       second.classList.add("is-in");
-    }, 3600);
+      present.play().catch(() => {});
+    } else {
+      const intro = h("video", {
+        class: "splash-img",
+        poster: C.arte.introPoster,
+        preload: "auto"
+      });
+      intro.muted = true;
+      intro.playsInline = true;
+      intro.autoplay = true;
+      intro.src = C.arte.introVideo;
+
+      const skip = h("button", { class: "splash-skip", text: "Saltar ›" });
+      const first = h("div", { class: "splash-layer splash-layer--1" },
+        h("img", { class: "splash-img", src: C.arte.introPoster, alt: "" }),
+        intro,
+        skip
+      );
+
+      node.prepend(first);
+
+      let revealed = false;
+
+      function reveal() {
+        if (revealed) return;
+        revealed = true;
+        settings.seenIntro = true;
+        saveSettings();
+
+        first.classList.add("is-out");
+        second.classList.add("is-in");
+
+        intro.pause();
+        present.play().catch(() => {});
+      }
+
+      skip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        reveal();
+      });
+      first.addEventListener("pointerdown", reveal);
+
+      intro.addEventListener("ended", reveal);
+      intro.addEventListener("error", reveal);
+      setTimeout(reveal, 11000);
+
+      intro.play().catch(() => {});
+    }
 
     UI.show(node);
   }
@@ -392,7 +532,11 @@
       ),
       regalo,
       comp,
-      h("p", { class: "small tc", text: "Monedas: " + profile.coins })
+      h("div", { class: "tc stack-sm" },
+        h("p", { class: "small", text: "Monedas: " + profile.coins }),
+        shareLink(),
+        installHint()
+      )
     ], { center: true }));
   }
 
@@ -495,6 +639,15 @@
         goal: nivel.objetivo,
         onCombo: mostrarCombo,
 
+        onClear: function (count, x, y, maxRun) {
+          UI.floatScore(x, y, "+" + count);
+          UI.burst(x, y);
+          if (maxRun >= 4) {
+            UI.shake();
+            UI.flash();
+          }
+        },
+
         onUpdate: function (snap) {
           movesValue.textContent = String(snap.movesLeft);
           movesValue.classList.toggle("is-low", snap.movesLeft <= 5);
@@ -517,6 +670,7 @@
       });
 
       board.start();
+      tutorialHint();
     });
   }
 
@@ -615,6 +769,7 @@
 
   function competitivo() {
     destroyBoard();
+    if (monedaDiaria()) UI.toast("+1 moneda del día");
     Sound.setMusicMode("upbeat");
     UI.accent("#2fd3d3", "#7c5cff");
     UI.progress(0, 0);
@@ -754,6 +909,15 @@
         goal: p.objetivo,
         onCombo: mostrarCombo,
 
+        onClear: function (count, x, y, maxRun) {
+          UI.floatScore(x, y, "+" + count);
+          UI.burst(x, y);
+          if (maxRun >= 4) {
+            UI.shake();
+            UI.flash();
+          }
+        },
+
         onUpdate: function (snap) {
           movesValue.textContent = String(snap.movesLeft);
           movesValue.classList.toggle("is-low", snap.movesLeft <= 5);
@@ -777,6 +941,7 @@
       });
 
       board.start();
+      tutorialHint();
     });
   }
 
@@ -950,6 +1115,7 @@
         coins: 0,
         best: 0,
         lastName: "Lola",
+        lastDaily: "",
         items: { moves: 0, shuffle: 0 },
         scores: []
       };
@@ -984,9 +1150,21 @@
       menu();
     });
 
+    const video = h("video", {
+      class: "scene__video",
+      poster: C.arte.regaloPoster,
+      preload: "auto"
+    });
+    video.muted = true;
+    video.playsInline = true;
+    video.loop = true;
+    video.autoplay = true;
+    video.src = C.arte.regaloVideo;
+
     const node = h("div", { class: "screen scene" },
       h("div", { class: "scene__stage" },
-        h("img", { src: C.arte.lolaRegalo, alt: "" })
+        h("img", { src: C.arte.regaloPoster, alt: "" }),
+        video
       ),
       h("div", { class: "scene__foot" },
         h("p", { class: "scene__title", text: "Tu regalo te espera." }),
@@ -995,6 +1173,7 @@
     );
 
     UI.show(node);
+    video.play().catch(() => {});
     Sound.ok();
   }
 
@@ -1030,7 +1209,7 @@
       ),
       h("div", { class: "clue" }, line),
       place,
-      h("div", { class: "center stack-sm" }, message, signature, ver, again)
+      h("div", { class: "center stack-sm" }, message, signature, ver, again, shareLink())
     ], { center: true }));
 
     setTimeout(async () => {

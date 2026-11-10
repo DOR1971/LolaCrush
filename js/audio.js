@@ -269,6 +269,15 @@ const Sound = (() => {
       note(base * 1.5, { dur: 0.11, type: "sine", gain: 0.45, delay: 0.045 });
     },
 
+    /* Línea de 4 o 5: chime más rico y ascendente. */
+    matchBig(kind) {
+      const base = kind >= 5 ? 659 : 587;
+      [0, 4, 7, 12, 16].forEach((semi, i) => {
+        note(base * Math.pow(2, semi / 12), { dur: 0.13, type: "triangle", gain: 0.65, delay: i * 0.05 });
+      });
+      if (kind >= 5) noise({ dur: 0.3, gain: 0.16, filter: 3000 });
+    },
+
     /* Fanfarria corta y ascendente; sube de tono con el combo. */
     combo(n) {
       const step = Math.min(n || 2, 7);

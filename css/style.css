@@ -264,16 +264,21 @@ button {
   padding-bottom: 10px;
 }
 
-/* Los potenciadores van dentro del centro, más compactos. */
+/* Los potenciadores van dentro del centro, compactos (solo icono). */
 .coach__center .powerbar {
-  gap: 8px;
+  gap: 10px;
 }
 
 .coach__center .power {
-  padding: 8px 12px;
-  gap: 6px;
-  font-size: 0.8rem;
-  border-radius: 13px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 14px;
+}
+
+.coach__center .power__label {
+  display: none;
 }
 
 .coach__center .power__count {
@@ -509,7 +514,12 @@ p {
   opacity: 0;
   pointer-events: none;
   transition: opacity 750ms var(--ease), transform 900ms var(--ease);
-  will-change: opacity, transform;
+}
+
+/* Imagen y vídeo ocupan la capa entera; el vídeo va encima del póster. */
+.splash-layer .splash-img {
+  position: absolute;
+  inset: 0;
 }
 
 .splash-layer--1 {
@@ -566,6 +576,25 @@ p {
 
 .splash-play:active {
   background: rgba(255, 255, 255, 0.16);
+}
+
+.splash-skip {
+  position: absolute;
+  right: 14px;
+  bottom: calc(16px + var(--safe-bottom));
+  z-index: 6;
+  padding: 8px 15px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(18, 10, 24, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(8px);
+}
+
+.splash-skip:active {
+  background: rgba(18, 10, 24, 0.8);
 }
 
 /* --------------------------------------------------------------------------
@@ -1183,14 +1212,19 @@ p {
 }
 
 .scene__stage {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   place-items: center;
   background: #0e0913;
+  overflow: hidden;
 }
 
-.scene__stage img {
+.scene__stage img,
+.scene__stage video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1257,6 +1291,68 @@ p {
   0% { transform: scale(0.6) rotate(-4deg); }
   55% { transform: scale(1.1) rotate(2deg); }
   100% { transform: scale(1) rotate(0deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Jugo del tablero: puntos flotantes, sacudida, destello y pista
+   -------------------------------------------------------------------------- */
+
+.float-score {
+  position: fixed;
+  z-index: 85;
+  font-family: "Baloo 2", "Outfit", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 16px var(--accent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.float-score.is-up {
+  animation: floatUp 850ms var(--ease) forwards;
+}
+
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  18% { opacity: 1; transform: translate(-50%, -85%) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
+
+#app.is-shake {
+  animation: boardShake 340ms var(--ease);
+}
+
+@keyframes boardShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-5px, 2px); }
+  40% { transform: translate(5px, -2px); }
+  60% { transform: translate(-3px, 1px); }
+  80% { transform: translate(3px, -1px); }
+}
+
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 72%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.flash.is-on {
+  opacity: 1;
+}
+
+.tile__face.is-hint {
+  animation: hintPulse 1s ease-in-out infinite;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 2px #fff,
+    0 0 22px color-mix(in srgb, var(--tc, #fff) 85%, transparent);
 }
 
 /* --------------------------------------------------------------------------

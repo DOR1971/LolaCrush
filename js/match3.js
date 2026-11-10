@@ -18,6 +18,7 @@ class Match3 {
     this.onWin = opts.onWin || function () {};
     this.onLose = opts.onLose || function () {};
     this.onCombo = opts.onCombo || null;
+    this.onClear = opts.onClear || null;
 
     this.el = document.createElement("div");
     this.el.className = "board";
@@ -215,6 +216,34 @@ class Match3 {
     return matched;
   }
 
+  /* Longitud de la línea más larga del tablero (para el sonido y el jugo). */
+  maxRunLength() {
+    const g = this.grid;
+    let max = 0;
+
+    for (let r = 0; r < this.rows; r++) {
+      let run = 1;
+      for (let c = 1; c <= this.cols; c++) {
+        const same = c < this.cols && g[r][c] && g[r][c - 1] &&
+          g[r][c].type === g[r][c - 1].type;
+        if (same) run++;
+        else { max = Math.max(max, run); run = 1; }
+      }
+    }
+
+    for (let c = 0; c < this.cols; c++) {
+      let run = 1;
+      for (let r = 1; r <= this.rows; r++) {
+        const same = r < this.rows && g[r][c] && g[r - 1][c] &&
+          g[r][c].type === g[r - 1][c].type;
+        if (same) run++;
+        else { max = Math.max(max, run); run = 1; }
+      }
+    }
+
+    return max;
+  }
+
   /* --- Resolución de cascadas ------------------------------------------- */
 
   async resolve() {
@@ -226,9 +255,28 @@ class Match3 {
 
       combo++;
       this.cleared += runs.size;
-      Sound.match(combo);
+
+      const maxRun = this.maxRunLength();
+
+      if (maxRun >= 5) Sound.matchBig(5);
+      else if (maxRun >= 4) Sound.matchBig(4);
+      else Sound.match(combo);
 
       if (this.onCombo && combo >= 2) this.onCombo(combo);
+
+      if (this.onClear) {
+        let cx = 0;
+        let cy = 0;
+        runs.forEach((t) => { cx += t.c; cy += t.r; });
+        cx /= runs.size;
+        cy /= runs.size;
+
+        const rect = this.el.getBoundingClientRect();
+        const x = rect.left + (cx + 0.5) * this.size;
+        const y = rect.top + (cy + 0.5) * this.size;
+
+        this.onClear(runs.size, x, y, maxRun);
+      }
 
       runs.forEach((t) => t.face.classList.add("is-clearing"));
       await wait(190);
@@ -382,6 +430,42 @@ class Match3 {
 
     this.emit();
     await wait(140);
+  }
+
+  /* --- Tutorial: una jugada válida y cómo resaltarla --------------------- */
+
+  findAnyMove() {
+    const g = this.grid;
+    const check = () => this.findRuns().size > 0;
+
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (c + 1 < this.cols) {
+          [g[r][c], g[r][c + 1]] = [g[r][c + 1], g[r][c]];
+          const ok = check();
+          [g[r][c], g[r][c + 1]] = [g[r][c + 1], g[r][c]];
+          if (ok) return [{ r, c }, { r, c: c + 1 }];
+        }
+        if (r + 1 < this.rows) {
+          [g[r][c], g[r + 1][c]] = [g[r + 1][c], g[r][c]];
+          const ok = check();
+          [g[r][c], g[r + 1][c]] = [g[r + 1][c], g[r][c]];
+          if (ok) return [{ r, c }, { r: r + 1, c }];
+        }
+      }
+    }
+    return null;
+  }
+
+  hintCells(a, b) {
+    const t1 = this.grid[a.r][a.c];
+    const t2 = this.grid[b.r][b.c];
+    if (t1) t1.face.classList.add("is-hint");
+    if (t2) t2.face.classList.add("is-hint");
+  }
+
+  clearHints() {
+    this.allTiles().forEach((t) => t.face.classList.remove("is-hint"));
   }
 
   /* --- Entrada táctil ---------------------------------------------------- */

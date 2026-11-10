@@ -4,7 +4,7 @@
    actualización de la caché.
    ========================================================================== */
 
-const VERSION = "lolacrush-v9";
+const VERSION = "lolacrush-v11";
 const CACHE = "cache-" + VERSION;
 
 const ASSETS = [
@@ -19,13 +19,13 @@ const ASSETS = [
   "./js/app.js",
   "./assets/icon-192.png",
   "./assets/icon-512.png",
-  "./assets/saludo-1.jpg",
-  "./assets/portada.jpg",
   "./assets/nivel-superado.jpg",
-  "./assets/lola-regalo.jpg",
-  "./assets/lola.png",
+  "./assets/lola-anim.webp",
   "./assets/david.png",
-  "./assets/david-pistas.png"
+  "./assets/david-anim.webp",
+  "./assets/intro-poster.jpg",
+  "./assets/presentacion-poster.jpg",
+  "./assets/regalo-poster.jpg"
 ];
 
 self.addEventListener("install", (event) => {

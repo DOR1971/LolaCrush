@@ -452,58 +452,50 @@
       play
     );
 
-    const node = h("div", { class: "screen screen--flush" }, second);
+    const intro = h("video", {
+      class: "splash-img",
+      poster: C.arte.introPoster,
+      preload: "auto"
+    });
+    intro.muted = true;
+    intro.playsInline = true;
+    intro.autoplay = true;
+    intro.src = C.arte.introVideo;
 
-    if (settings.seenIntro) {
+    const skip = h("button", { class: "splash-skip", text: "Saltar ›" });
+
+    const first = h("div", { class: "splash-layer splash-layer--1" },
+      h("img", { class: "splash-img", src: C.arte.introPoster, alt: "" }),
+      intro,
+      skip
+    );
+
+    const node = h("div", { class: "screen screen--flush" }, first, second);
+
+    let revealed = false;
+
+    function reveal() {
+      if (revealed) return;
+      revealed = true;
+
+      first.classList.add("is-out");
       second.classList.add("is-in");
+
+      intro.pause();
       present.play().catch(() => {});
-    } else {
-      const intro = h("video", {
-        class: "splash-img",
-        poster: C.arte.introPoster,
-        preload: "auto"
-      });
-      intro.muted = true;
-      intro.playsInline = true;
-      intro.autoplay = true;
-      intro.src = C.arte.introVideo;
-
-      const skip = h("button", { class: "splash-skip", text: "Saltar ›" });
-      const first = h("div", { class: "splash-layer splash-layer--1" },
-        h("img", { class: "splash-img", src: C.arte.introPoster, alt: "" }),
-        intro,
-        skip
-      );
-
-      node.prepend(first);
-
-      let revealed = false;
-
-      function reveal() {
-        if (revealed) return;
-        revealed = true;
-        settings.seenIntro = true;
-        saveSettings();
-
-        first.classList.add("is-out");
-        second.classList.add("is-in");
-
-        intro.pause();
-        present.play().catch(() => {});
-      }
-
-      skip.addEventListener("click", (e) => {
-        e.stopPropagation();
-        reveal();
-      });
-      first.addEventListener("pointerdown", reveal);
-
-      intro.addEventListener("ended", reveal);
-      intro.addEventListener("error", reveal);
-      setTimeout(reveal, 11000);
-
-      intro.play().catch(() => {});
     }
+
+    skip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      reveal();
+    });
+    first.addEventListener("pointerdown", reveal);
+
+    intro.addEventListener("ended", reveal);
+    intro.addEventListener("error", reveal);
+    setTimeout(reveal, 11000);
+
+    intro.play().catch(() => {});
 
     UI.show(node);
   }
@@ -655,6 +647,14 @@
           goalFill.style.width = Math.min(100, (snap.cleared / snap.goal) * 100) + "%";
 
           motivar(snap);
+        },
+
+        onSpecial: function (kinds) {
+          UI.shake();
+          UI.flash();
+          UI.vibrate([20, 40, 20]);
+          const k = kinds[0];
+          UI.toast(k === "rainbow" ? "¡Arcoíris!" : k === "big" ? "¡Gran bomba!" : "¡Bomba!");
         },
 
         onWin: function () {
@@ -926,6 +926,14 @@
           totalLabel.textContent = "Nivel " + nivel + " · Total " + (run.score + snap.cleared);
 
           motivar(snap);
+        },
+
+        onSpecial: function (kinds) {
+          UI.shake();
+          UI.flash();
+          UI.vibrate([20, 40, 20]);
+          const k = kinds[0];
+          UI.toast(k === "rainbow" ? "¡Arcoíris!" : k === "big" ? "¡Gran bomba!" : "¡Bomba!");
         },
 
         onWin: function () {

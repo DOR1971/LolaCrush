@@ -278,6 +278,15 @@ const Sound = (() => {
       if (kind >= 5) noise({ dur: 0.3, gain: 0.16, filter: 3000 });
     },
 
+    /* Explosión de una ficha especial. */
+    special(kind) {
+      const base = kind === "rainbow" ? 784 : kind === "big" ? 523 : 659;
+      [0, 7, 12, 19].forEach((semi, i) => {
+        note(base * Math.pow(2, semi / 12), { dur: 0.15, type: "triangle", gain: 0.55, delay: i * 0.05 });
+      });
+      noise({ dur: 0.4, gain: 0.22, filter: 2600 });
+    },
+
     /* Fanfarria corta y ascendente; sube de tono con el combo. */
     combo(n) {
       const step = Math.min(n || 2, 7);

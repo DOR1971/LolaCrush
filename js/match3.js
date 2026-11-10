@@ -19,6 +19,7 @@ class Match3 {
     this.onLose = opts.onLose || function () {};
     this.onCombo = opts.onCombo || null;
     this.onClear = opts.onClear || null;
+    this.onSpecial = opts.onSpecial || null;
 
     this.el = document.createElement("div");
     this.el.className = "board";
@@ -29,6 +30,8 @@ class Match3 {
     this.movesLeft = this.moves;
     this.cleared = 0;
     this.combo = 0;
+    this.specialsMade = 0;
+    this.specialsFired = 0;
     this.selected = null;
     this.down = null;
     this.busy = false;
@@ -141,8 +144,16 @@ class Match3 {
   setType(tile, type) {
     const conf = this.types[type];
     tile.type = type;
+    tile.special = null;
+    tile.face.classList.remove("is-special", "is-special--bomb", "is-special--big", "is-special--rainbow");
     tile.face.textContent = conf.emoji;
     tile.face.style.setProperty("--tc", conf.color);
+  }
+
+  setSpecial(tile, kind) {
+    tile.special = kind;
+    tile.face.classList.add("is-special", "is-special--" + kind);
+    tile.face.textContent = kind === "rainbow" ? "🌈" : kind === "big" ? "💣" : "💥";
   }
 
   place(tile, animate, yOverride) {
@@ -244,6 +255,63 @@ class Match3 {
     return max;
   }
 
+  /* --- Fichas especiales -------------------------------------------------- */
+
+  /* Qué ficha especial crearía un 4/5/L-T centrado en (r, c). */
+  specialAt(r, c) {
+    const g = this.grid;
+    const t = g[r][c];
+    if (!t) return null;
+
+    let h = 1;
+    let cc = c - 1;
+    while (cc >= 0 && g[r][cc] && g[r][cc].type === t.type) { h++; cc--; }
+    cc = c + 1;
+    while (cc < this.cols && g[r][cc] && g[r][cc].type === t.type) { h++; cc++; }
+
+    let v = 1;
+    let rr = r - 1;
+    while (rr >= 0 && g[rr][c] && g[rr][c].type === t.type) { v++; rr--; }
+    rr = r + 1;
+    while (rr < this.rows && g[rr][c] && g[rr][c].type === t.type) { v++; rr++; }
+
+    if (h >= 5 || v >= 5) return "rainbow";
+    if (h >= 4 || v >= 4) return "bomb";
+    if (h >= 3 && v >= 3) return "big";
+    return null;
+  }
+
+  detectSpecial(a, b) {
+    const s1 = this.specialAt(a.r, a.c);
+    if (s1) return { r: a.r, c: a.c, kind: s1 };
+    const s2 = this.specialAt(b.r, b.c);
+    if (s2) return { r: b.r, c: b.c, kind: s2 };
+    return null;
+  }
+
+  applySpecial(p) {
+    const t = this.grid[p.r][p.c];
+    if (t) {
+      this.setSpecial(t, p.kind);
+      this.specialsMade++;
+    }
+  }
+
+  mostAbundantType(excludeType) {
+    const counts = {};
+    this.allTiles().forEach((t) => {
+      if (t.type === excludeType) return;
+      counts[t.type] = (counts[t.type] || 0) + 1;
+    });
+
+    let best = null;
+    let bestN = -1;
+    for (const type in counts) {
+      if (counts[type] > bestN) { bestN = counts[type]; best = Number(type); }
+    }
+    return best === null ? excludeType : best;
+  }
+
   /* --- Resolución de cascadas ------------------------------------------- */
 
   async resolve() {
@@ -254,34 +322,67 @@ class Match3 {
       if (runs.size === 0) break;
 
       combo++;
-      this.cleared += runs.size;
+
+      const specials = [];
+      runs.forEach((t) => { if (t.special) specials.push(t); });
+
+      const clearSet = new Set(runs);
+
+      specials.forEach((sp) => {
+        if (sp.special === "bomb") {
+          for (let rr = sp.r - 1; rr <= sp.r + 1; rr++) {
+            for (let cc = sp.c - 1; cc <= sp.c + 1; cc++) {
+              if (this.inside({ r: rr, c: cc }) && this.grid[rr][cc]) clearSet.add(this.grid[rr][cc]);
+            }
+          }
+        } else if (sp.special === "big") {
+          for (let rr = sp.r - 2; rr <= sp.r + 2; rr++) {
+            for (let cc = sp.c - 2; cc <= sp.c + 2; cc++) {
+              if (this.inside({ r: rr, c: cc }) && this.grid[rr][cc]) clearSet.add(this.grid[rr][cc]);
+            }
+          }
+        } else {
+          const target = this.mostAbundantType(sp.type);
+          this.allTiles().forEach((t) => { if (t.type === target) clearSet.add(t); });
+        }
+      });
+
+      this.cleared += clearSet.size;
 
       const maxRun = this.maxRunLength();
 
-      if (maxRun >= 5) Sound.matchBig(5);
-      else if (maxRun >= 4) Sound.matchBig(4);
-      else Sound.match(combo);
+      if (specials.length) {
+        this.specialsFired += specials.length;
+        if (this.onSpecial) this.onSpecial(specials.map((s) => s.special));
+        specials.forEach((s) => Sound.special(s.special));
+      } else if (maxRun >= 5) {
+        Sound.matchBig(5);
+      } else if (maxRun >= 4) {
+        Sound.matchBig(4);
+      } else {
+        Sound.match(combo);
+      }
 
       if (this.onCombo && combo >= 2) this.onCombo(combo);
 
       if (this.onClear) {
         let cx = 0;
         let cy = 0;
-        runs.forEach((t) => { cx += t.c; cy += t.r; });
-        cx /= runs.size;
-        cy /= runs.size;
+        clearSet.forEach((t) => { cx += t.c; cy += t.r; });
+        cx /= clearSet.size;
+        cy /= clearSet.size;
 
         const rect = this.el.getBoundingClientRect();
         const x = rect.left + (cx + 0.5) * this.size;
         const y = rect.top + (cy + 0.5) * this.size;
 
-        this.onClear(runs.size, x, y, maxRun);
+        this.onClear(clearSet.size, x, y, maxRun);
       }
 
-      runs.forEach((t) => t.face.classList.add("is-clearing"));
+      clearSet.forEach((t) => t.face.classList.add("is-clearing"));
       await wait(190);
 
-      runs.forEach((t) => {
+      clearSet.forEach((t) => {
         if (this.grid[t.r][t.c] === t) this.grid[t.r][t.c] = null;
         t.el.remove();
       });
@@ -355,8 +456,13 @@ class Match3 {
     this.movesLeft--;
     this.emit();
 
+    const pending = this.detectSpecial(a, b);
+
     const combo = await this.resolve();
     this.combo = combo;
+
+    if (pending) this.applySpecial(pending);
+
     this.emit();
 
     if (!this.hasMove()) {
